@@ -2,7 +2,9 @@ package moq
 
 import (
 	"bytes"
+	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -191,6 +193,43 @@ func TestVendoredPackages(t *testing.T) {
 		if !strings.Contains(s, str) {
 			t.Errorf("expected but missing: \"%s\"", str)
 		}
+	}
+}
+
+func TestGoGenerateVendoredPackages(t *testing.T) {
+	preDir, err := os.Getwd()
+	if err != nil {
+		t.Errorf("Getwd: %s", err)
+	}
+	err = os.Chdir("testpackages/gogenvendoring")
+	if err != nil {
+		t.Errorf("Chdir: %s", err)
+	}
+	defer func() {
+		err = os.Chdir(preDir)
+		if err != nil {
+			t.Errorf("Chdir back: %s", err)
+		}
+	}()
+	cmd := exec.Command("go", "generate", "./...")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Errorf("StdoutPipe: %s", err)
+	}
+	defer stdout.Close()
+	err = cmd.Start()
+	if err != nil {
+		t.Errorf("Start: %s", err)
+	}
+	buf := bytes.NewBuffer(nil)
+	io.Copy(buf, stdout)
+	err = cmd.Wait()
+	if err != nil {
+		t.Errorf("Wait: %s", err)
+	}
+	s := buf.String()
+	if strings.Contains(s, `vendor/`) {
+		t.Error("contains vendor directory in import path")
 	}
 }
 
